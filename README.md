@@ -13,6 +13,20 @@ This repository begins with a Jellyfin 12 and .NET 10 compatibility spike. It do
 
 The mock flow is for an isolated local test server only. It is disabled by default, requires an administrator to issue a credential, and should be removed before a production release. It is not an OIDC implementation and must not be exposed to untrusted users.
 
+## Install in Jellyfin 12.2
+
+Add this URL in **Dashboard → Plugins → Repositories**:
+
+```text
+https://raw.githubusercontent.com/lissosia/jellyfin-oidc-plugin/main/manifest.json
+```
+
+Open the plugin catalog, install **OpenID Connect** version **0.1.0.0**, then restart Jellyfin. The repository manifest references a compiled release ZIP and contains its actual MD5 checksum, as required by Jellyfin's installer. `build.yaml` is build metadata; `manifest.json` is the installable repository index.
+
+Open the plugin's configuration page, enable mock login, and create a disposable non-administrator test user. In that user's settings, select **OIDC Phase 0 Mock** as its authentication provider. Keep the local administrator assigned to **Default**. Enter the test user's ID on the plugin page and run the mock login check. The check creates a separate device session, verifies `/Users/Me`, then logs that session out.
+
+Disable mock login after testing. Restore the disposable user's authentication provider to **Default** before removing the plugin if you want to keep that user.
+
 ## Build
 
 Install the .NET 10 SDK, then run:
@@ -29,7 +43,7 @@ The build targets Jellyfin 12's `Jellyfin.Controller` and `Jellyfin.Model` 12.2.
 1. Build the plugin and load it into a disposable Jellyfin 12.2 server.
 2. Confirm the plugin and its service registrator load without a startup error.
 3. Open **Dashboard → Plugins → OIDC Phase 0** and confirm the configuration page is served.
-4. Enable the temporary mock flow, then choose a disposable existing user and run the native session check. It should report the same username after `/Users/AuthenticateByName` and the token-authenticated `who-am-i` request.
+4. Enable the temporary mock flow, assign a disposable user to the **OIDC Phase 0 Mock** authentication provider, then run the native session check. It should report the same username after `/Users/AuthenticateByName` and the token-authenticated `who-am-i` request.
 5. Confirm an expired credential, replayed credential, wrong-user credential, disabled mock option, and non-administrator ticket request fail.
 6. With Quick Connect enabled, run the configuration page's Quick Connect check. Verify Jellyfin accepts the authenticated authorization and the issued device session resolves to the signed-in user.
 7. Disable the mock option and confirm the endpoint returns not found. Confirm the normal Jellyfin login still works.
@@ -41,5 +55,7 @@ These host checks have not been run in this checkout. Completing them on a real 
 The API surface was checked against Jellyfin's `release-12.z` source: `IAuthenticationProvider`, `IRequiresResolvedUser`, `IPluginServiceRegistrator`, `ISessionManager.AuthenticateNewSession`, and `IQuickConnect`. Jellyfin's own `/QuickConnect/Authorize` endpoint requires an authenticated principal; this spike calls that endpoint and leaves code generation, polling, authorization and device-session creation to Jellyfin.
 
 Jellyfin exposes plugin configuration pages through `IHasWebPages`, which is the supported extension point used here. This does not prove that Jellyfin Web offers a supported third-party login-button hook; a login-page integration decision remains open for Phase 4.
+
+To regenerate the installable ZIP and its manifest, run `python3 scripts/package.py` with .NET 10 on your PATH. Upload the generated ZIP to the matching GitHub release before publishing the manifest. Build output is excluded from Git.
 
 All plugin implementation files in this repository are newly written for this project. Jellyfin API names and interfaces are used according to their public contracts; no source code from other OIDC plugins was copied. The repository's GPL-3.0 license is retained.

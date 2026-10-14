@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.Oidc.Authentication;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;

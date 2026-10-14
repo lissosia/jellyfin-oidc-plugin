@@ -50,6 +50,11 @@ public sealed class PhaseZeroController : ControllerBase
             return NotFound("The selected Jellyfin user does not exist.");
         }
 
+        if (!string.Equals(user.AuthenticationProviderId, typeof(MockAuthenticationProvider).FullName, StringComparison.Ordinal))
+        {
+            return BadRequest("Select OIDC Phase 0 Mock as this test user's authentication provider first.");
+        }
+
         return Ok(new MockLoginTicketResponse(user.Username, _ticketStore.Issue(user.Id)));
     }
 
