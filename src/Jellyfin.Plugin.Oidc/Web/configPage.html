@@ -73,7 +73,7 @@
                 url: ApiClient.getUrl('Users/AuthenticateByName'),
                 contentType: 'application/json',
                 dataType: 'json',
-                data: JSON.stringify({ Username: issued.username, Pw: issued.credential })
+                data: JSON.stringify({ Username: issued.Username, Pw: issued.Credential })
             });
             accessToken = session.AccessToken;
             if (!accessToken) {
@@ -86,7 +86,7 @@
                 dataType: 'json',
                 headers: { 'X-Emby-Token': accessToken }
             });
-            if (identity !== issued.username) {
+            if (identity !== issued.Username) {
                 throw new Error('The issued session resolved to an unexpected user.');
             }
 
