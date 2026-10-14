@@ -8,6 +8,14 @@
     "category": "Authentication",
     "versions": [
       {
+        "version": "0.1.0.1",
+        "changelog": "Initial installable Phase 0 compatibility spike.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/lissosia/jellyfin-oidc-plugin/releases/download/v0.1.0.1/jellyfin-oidc_0.1.0.1.zip",
+        "checksum": "78dbb6f8a49d842a9f2ea46dd0dd1b72",
+        "timestamp": "2026-10-14T13:40:29Z"
+      },
+      {
         "version": "0.1.0.0",
         "changelog": "Initial installable Phase 0 compatibility spike.",
         "targetAbi": "12.2.0.0",

@@ -1,7 +1,7 @@
 ---
 name: "OpenID Connect"
 guid: "b51a78b4-74b0-4e18-9f69-8e7f79203856"
-version: "0.1.0.0"
+version: "0.1.0.1"
 targetAbi: "12.2.0.0"
 framework: "net10.0"
 overview: "A focused OpenID Connect authentication plugin for Jellyfin."

@@ -40,6 +40,12 @@
     const result = page.querySelector('#result');
     const quickConnectResult = page.querySelector('#quickConnectResult');
 
+    function newDeviceId() {
+        // getRandomValues also works on private HTTP UAT servers.
+        return 'oidc-check-' + Array.from(crypto.getRandomValues(new Uint8Array(16)),
+            value => value.toString(16).padStart(2, '0')).join('');
+    }
+
     // Give each check a separate device so it cannot replace the administrator's session.
     function deviceHeader(deviceId, token) {
         return 'MediaBrowser Client="OIDC Phase 0", Device="Compatibility Check", DeviceId="'
@@ -102,7 +108,7 @@
         const button = this;
         button.disabled = true;
         result.textContent = 'Running…';
-        const deviceId = crypto.randomUUID();
+        const deviceId = newDeviceId();
         let session;
         try {
             const userId = page.querySelector('#userId').value.trim();
@@ -129,7 +135,7 @@
         const button = this;
         button.disabled = true;
         quickConnectResult.textContent = 'Running…';
-        const deviceId = crypto.randomUUID();
+        const deviceId = newDeviceId();
         let session;
         try {
             const expectedUser = await ApiClient.ajax({type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json'});

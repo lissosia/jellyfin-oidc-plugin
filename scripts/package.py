@@ -46,6 +46,13 @@ manifest = [{
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }],
 }]
+existing_manifest = ROOT / "manifest.json"
+if existing_manifest.exists():
+    previous = json.loads(existing_manifest.read_text())
+    if previous and previous[0].get("guid") == manifest[0]["guid"]:
+        manifest[0]["versions"].extend(
+            v for v in previous[0]["versions"] if v["version"] != VERSION
+        )
 (ROOT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 print(f"Package: {archive}")
 print("Manifest: manifest.json (checksum calculated from package bytes)")

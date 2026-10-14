@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="src/Jellyfin.Plugin.Oidc/Jellyfin.Plugin.Oidc.csproj" />
+  <Project Path="tests/TicketStoreChecks/TicketStoreChecks.csproj" />
 </Solution>

@@ -21,7 +21,7 @@ Add this URL in **Dashboard → Plugins → Repositories**:
 https://raw.githubusercontent.com/lissosia/jellyfin-oidc-plugin/main/manifest.json
 ```
 
-Open the plugin catalog, install **OpenID Connect** version **0.1.0.0**, then restart Jellyfin. The repository manifest references a compiled release ZIP and contains its actual MD5 checksum, as required by Jellyfin's installer. `build.yaml` is build metadata; `manifest.json` is the installable repository index.
+Open the plugin catalog, install **OpenID Connect** version **0.1.0.1**, then restart Jellyfin. The repository manifest references a compiled release ZIP and contains its actual MD5 checksum, as required by Jellyfin's installer. `build.yaml` is build metadata; `manifest.json` is the installable repository index.
 
 Open the plugin's configuration page, enable mock login, and create a disposable non-administrator test user. In that user's settings, select **OIDC Phase 0 Mock** as its authentication provider. Keep the local administrator assigned to **Default**. Enter the test user's ID on the plugin page and run the mock login check. The check creates a separate device session, verifies `/Users/Me`, then logs that session out.
 
@@ -48,7 +48,11 @@ The build targets Jellyfin 12's `Jellyfin.Controller` and `Jellyfin.Model` 12.2.
 6. With Quick Connect enabled, run the configuration page's Quick Connect check. Verify Jellyfin accepts the authenticated authorization and the issued device session resolves to the signed-in user.
 7. Disable the mock option and confirm the endpoint returns not found. Confirm the normal Jellyfin login still works.
 
-These host checks have not been run in this checkout. Completing them on a real Jellyfin 12.2 host is the exit criterion before starting Phase 1.
+The installable package was loaded on a Jellyfin 12.2 UAT server. Native login, user binding, replay rejection, empty-credential rejection, administrator-only credential issuance, authenticated Quick Connect approval, native device-session validation, and configuration-page delivery passed. Disposable test accounts and sessions were removed and mock login was restored to disabled. Browser checks are recorded in `docs/phase-zero-validation.md`.
+
+## Ticket-store security checks
+
+Run `dotnet run --project tests/TicketStoreChecks -c Release` to check wrong-user binding, replay rejection, empty/unknown credentials, and atomic consumption under 64 concurrent attempts. Add `-- --expiry` to also wait for and verify the actual two-minute expiry.
 
 ## Compatibility notes
 
