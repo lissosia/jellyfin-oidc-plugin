@@ -2,11 +2,19 @@
   {
     "guid": "b51a78b4-74b0-4e18-9f69-8e7f79203856",
     "name": "OpenID Connect",
-    "description": "Pocket ID OpenID Connect sign-in for Jellyfin 12. Supports PKCE, guarded provisioning, mapped admin roles, and profile image import.",
-    "overview": "Pocket ID OIDC sign-in with Jellyfin native sessions",
+    "description": "Multi-provider OpenID Connect sign-in for Jellyfin 12. Supports PKCE, guarded provisioning, mapped admin roles, and profile image import.",
+    "overview": "Multi-provider OpenID Connect with native Jellyfin sessions",
     "owner": "lissosia",
     "category": "Authentication",
     "versions": [
+      {
+        "version": "0.3.0.0",
+        "changelog": "Provider-agnostic multi-provider OIDC with PKCE, configurable claims and scopes, HTTPS-only Jellyfin callbacks, guarded provisioning, provider-specific administrator mapping, profile picture sync, and provider management UI.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/lissosia/jellyfin-oidc-plugin/releases/download/v0.3.0.0/jellyfin-oidc_0.3.0.0.zip",
+        "checksum": "afc5a00ea5d7ee74c37bb6231862e928",
+        "timestamp": "2026-10-14T14:47:26Z"
+      },
       {
         "version": "0.2.0.0",
         "changelog": "Pocket ID authorization code + PKCE, native Jellyfin sessions, guarded user provisioning, explicit group to administrator mapping, profile picture sync, and integrated settings page.",
