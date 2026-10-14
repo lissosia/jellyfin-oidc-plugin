@@ -39,13 +39,13 @@ with ZipFile(archive, "w", compression=ZIP_DEFLATED) as package:
 manifest = [{
     "guid": "b51a78b4-74b0-4e18-9f69-8e7f79203856",
     "name": "OpenID Connect",
-    "description": "Pocket ID OpenID Connect sign-in for Jellyfin 12. Supports PKCE, guarded provisioning, mapped admin roles, and profile image import.",
-    "overview": "Pocket ID OIDC sign-in with Jellyfin native sessions",
+    "description": "Multi-provider OpenID Connect sign-in for Jellyfin 12. Supports PKCE, guarded provisioning, mapped admin roles, and profile image import.",
+    "overview": "Multi-provider OpenID Connect with native Jellyfin sessions",
     "owner": "lissosia",
     "category": "Authentication",
     "versions": [{
         "version": VERSION,
-        "changelog": "Pocket ID authorization code + PKCE, native Jellyfin sessions, guarded user provisioning, explicit group to administrator mapping, profile picture sync, and integrated settings page.",
+        "changelog": "Fix issuer URL normalization for root issuers and discovery URLs.",
         "targetAbi": "12.2.0.0",
         "sourceUrl": f"https://github.com/lissosia/jellyfin-oidc-plugin/releases/download/v{VERSION}/{archive.name}",
         "checksum": hashlib.md5(archive.read_bytes()).hexdigest(),

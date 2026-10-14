@@ -1,13 +1,13 @@
----
 name: "OpenID Connect"
 guid: "b51a78b4-74b0-4e18-9f69-8e7f79203856"
-version: "0.2.0.0"
+version: "0.3.0.1"
 targetAbi: "12.2.0.0"
 framework: "net10.0"
-overview: "A focused OpenID Connect authentication plugin for Jellyfin."
+overview: "OpenID Connect authentication for Jellyfin."
 description: >
-  UAT Pocket ID OIDC login with PKCE, Jellyfin native sessions, group-gated
-  user provisioning, opt-in administrator mapping, and profile picture import.
+  Multi-provider OIDC sign-in with PKCE, Jellyfin native sessions, guarded
+  user provisioning, provider-specific administrator mapping, and profile
+  picture import.
 category: "Authentication"
 owner: "lissosia"
 artifacts:
@@ -21,4 +21,5 @@ artifacts:
 - "Microsoft.IdentityModel.Tokens.dll"
 - "System.IdentityModel.Tokens.Jwt.dll"
 changelog: >
-  Add Pocket ID authentication and UAT provisioning/profile synchronization.
+  Add generic multi-provider OpenID Connect authentication, provider settings,
+  HTTPS-only Jellyfin callback validation, and updated documentation.

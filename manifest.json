@@ -8,6 +8,14 @@
     "category": "Authentication",
     "versions": [
       {
+        "version": "0.3.0.1",
+        "changelog": "Fix issuer URL normalization for root issuers and discovery URLs.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/lissosia/jellyfin-oidc-plugin/releases/download/v0.3.0.1/jellyfin-oidc_0.3.0.1.zip",
+        "checksum": "4d68f79cc2d3a4065ecb17ef656cb271",
+        "timestamp": "2026-10-14T15:37:17Z"
+      },
+      {
         "version": "0.3.0.0",
         "changelog": "Provider-agnostic multi-provider OIDC with PKCE, configurable claims and scopes, HTTPS-only Jellyfin callbacks, guarded provisioning, provider-specific administrator mapping, profile picture sync, and provider management UI.",
         "targetAbi": "12.2.0.0",

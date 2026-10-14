@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
-using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -32,21 +31,23 @@ public sealed class OidcService
     public static string GetCallbackUri(PluginConfiguration configuration)
     {
         if (!Uri.TryCreate(configuration.PublicBaseUrl, UriKind.Absolute, out var baseUri)
-            || baseUri.AbsolutePath != "/"
             || !string.IsNullOrEmpty(baseUri.UserInfo)
             || !string.IsNullOrEmpty(baseUri.Query)
             || !string.IsNullOrEmpty(baseUri.Fragment)
-            || (baseUri.Scheme != Uri.UriSchemeHttps && !IsPrivateHttp(baseUri)))
+            || baseUri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new InvalidOperationException("Use an HTTPS Jellyfin URL. HTTP is allowed only for localhost or a private RFC1918 IPv4 UAT address.");
+            throw new InvalidOperationException("The public Jellyfin URL must use HTTPS for OpenID Connect.");
         }
 
-        return new Uri(baseUri, "/Plugins/Oidc/Oidc/callback").AbsoluteUri;
+        var basePath = baseUri.AbsoluteUri.EndsWith('/') ? baseUri.AbsoluteUri : baseUri.AbsoluteUri + "/";
+        return new Uri(new Uri(basePath), "Plugins/Oidc/Oidc/callback").AbsoluteUri;
     }
 
     /// <summary>Builds an authorization redirect and stores its state, nonce, and PKCE verifier.</summary>
     public async Task<(Uri RedirectUri, OidcTransaction Transaction)> CreateAuthorizationRequestAsync(
-        PluginConfiguration configuration,
+        OidcProviderConfiguration configuration,
+        string providerId,
+        PluginConfiguration serverConfiguration,
         CancellationToken cancellationToken)
     {
         var clientId = Require(configuration.ClientId, "Client ID");
@@ -56,7 +57,7 @@ public sealed class OidcService
         var authorizationUri = ValidateEndpoint(metadata.AuthorizationEndpoint, issuer, "authorization");
         _ = ValidateEndpoint(metadata.JwksUri, issuer, "signing keys");
 
-        var transaction = _transactionStore.Create(GetCallbackUri(configuration));
+        var transaction = _transactionStore.Create(providerId, GetCallbackUri(serverConfiguration));
         var challenge = Base64UrlEncoder.Encode(SHA256.HashData(Encoding.ASCII.GetBytes(transaction.CodeVerifier)));
         var query = new Dictionary<string, string?>
         {
@@ -64,7 +65,7 @@ public sealed class OidcService
             ["redirect_uri"] = transaction.RedirectUri,
             ["response_type"] = "code",
             ["response_mode"] = "query",
-            ["scope"] = "openid profile email groups",
+            ["scope"] = EnsureOpenIdScope(configuration.Scopes),
             ["state"] = transaction.State,
             ["nonce"] = transaction.Nonce,
             ["code_challenge"] = challenge,
@@ -75,7 +76,7 @@ public sealed class OidcService
 
     /// <summary>Consumes an authorization code, validates the ID token, and returns the verified identity.</summary>
     public async Task<VerifiedOidcIdentity> RedeemAuthorizationCodeAsync(
-        PluginConfiguration configuration,
+        OidcProviderConfiguration configuration,
         OidcTransaction transaction,
         string code,
         CancellationToken cancellationToken)
@@ -100,7 +101,7 @@ public sealed class OidcService
             ["client_id"] = Require(configuration.ClientId, "Client ID"),
             ["code_verifier"] = transaction.CodeVerifier
         });
-        var clientSecret = Plugin.Instance?.GetClientSecret() ?? string.Empty;
+        var clientSecret = Plugin.Instance?.GetClientSecret(configuration.ProtectedClientSecret) ?? string.Empty;
         if (!string.IsNullOrEmpty(clientSecret))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
@@ -159,12 +160,12 @@ public sealed class OidcService
             throw new InvalidOperationException("The verified identity has no valid subject.");
         }
 
-        return VerifiedOidcIdentity.Create(metadata.Issuer, subject, principal);
+        return VerifiedOidcIdentity.Create(configuration.Id, configuration.UsernameClaim, configuration.GroupsClaim, metadata.Issuer, subject, principal);
     }
 
     private async Task<OpenIdConnectConfiguration> GetConfigurationAsync(string issuer, CancellationToken cancellationToken)
     {
-        var discoveryUri = new Uri(new Uri(issuer), "/.well-known/openid-configuration").AbsoluteUri;
+        var discoveryUri = new Uri(issuer.TrimEnd('/') + "/.well-known/openid-configuration").AbsoluteUri;
         var manager = Managers.GetOrAdd(discoveryUri, url => new ConfigurationManager<OpenIdConnectConfiguration>(
             url,
             new OpenIdConnectConfigurationRetriever(),
@@ -176,23 +177,35 @@ public sealed class OidcService
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var issuer)
             || issuer.Scheme != Uri.UriSchemeHttps
-            || issuer.AbsolutePath != "/"
             || !string.IsNullOrEmpty(issuer.UserInfo)
             || !string.IsNullOrEmpty(issuer.Query)
             || !string.IsNullOrEmpty(issuer.Fragment))
         {
-            throw new InvalidOperationException("Set the Pocket ID issuer to its HTTPS base URL.");
+            throw new InvalidOperationException("Set the identity provider's HTTPS issuer URL.");
         }
 
-        return issuer.GetLeftPart(UriPartial.Path).TrimEnd('/');
+        var issuerPath = issuer.GetLeftPart(UriPartial.Path);
+        const string discoverySuffix = "/.well-known/openid-configuration";
+        if (issuerPath.EndsWith(discoverySuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            issuerPath = issuerPath[..^discoverySuffix.Length];
+        }
+
+        // Uri.GetLeftPart(UriPartial.Path) adds a slash to origin-only URLs.
+        // OIDC issuer identifiers are compared exactly with the discovery document,
+        // and providers such as Pocket ID publish the origin without that slash.
+        if (issuer.AbsolutePath == "/" && string.IsNullOrEmpty(issuer.Query) && string.IsNullOrEmpty(issuer.Fragment))
+        {
+            return issuer.GetLeftPart(UriPartial.Authority);
+        }
+
+        return issuerPath;
     }
 
     private static Uri ValidateEndpoint(string? value, string issuer, string description)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var endpoint)
             || endpoint.Scheme != Uri.UriSchemeHttps
-            || !string.Equals(endpoint.IdnHost, new Uri(issuer).IdnHost, StringComparison.OrdinalIgnoreCase)
-            || endpoint.Port != new Uri(issuer).Port
             || !string.IsNullOrEmpty(endpoint.UserInfo))
         {
             throw new InvalidOperationException($"The issuer discovery document has an invalid {description} endpoint.");
@@ -220,23 +233,18 @@ public sealed class OidcService
     {
         if (!string.Equals(metadata.Issuer, configuredIssuer, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("The discovery document issuer does not match the configured Pocket ID issuer.");
+            throw new InvalidOperationException("The discovery document issuer does not match the configured issuer.");
         }
     }
 
-    private static bool IsPrivateHttp(Uri uri)
-    {
-        if (uri.Scheme != Uri.UriSchemeHttp) return false;
-        if (uri.IsLoopback) return true;
-        if (!IPAddress.TryParse(uri.Host, out var address) || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return false;
-        var bytes = address.GetAddressBytes();
-        return bytes[0] == 10
-            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-            || (bytes[0] == 192 && bytes[1] == 168);
-    }
     private static string Require(string value, string name) => !string.IsNullOrWhiteSpace(value)
         ? value.Trim()
         : throw new InvalidOperationException($"Set the {name} before starting OIDC login.");
+    private static string EnsureOpenIdScope(string scopes)
+    {
+        var requested = (scopes ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return requested.Contains("openid", StringComparer.Ordinal) ? string.Join(' ', requested) : "openid " + string.Join(' ', requested);
+    }
     private sealed record TokenResponse(
         [property: JsonPropertyName("access_token")] string? AccessToken,
         [property: JsonPropertyName("id_token")] string? IdToken,
@@ -244,15 +252,15 @@ public sealed class OidcService
 }
 
 /// <summary>A verified identity and its user information claims.</summary>
-public sealed record VerifiedOidcIdentity(string Issuer, string Subject, string Username, string? DisplayName, string? PictureUrl, IReadOnlySet<string> Groups)
+public sealed record VerifiedOidcIdentity(string ProviderId, string Issuer, string Subject, string Username, string? DisplayName, string? PictureUrl, IReadOnlySet<string> Groups)
 {
-    internal static VerifiedOidcIdentity Create(string issuer, string subject, ClaimsPrincipal idToken)
+    internal static VerifiedOidcIdentity Create(string providerId, string usernameClaim, string groupsClaim, string issuer, string subject, ClaimsPrincipal idToken)
     {
-        var username = First("preferred_username", "username", "sub")
+        var username = First(usernameClaim, "preferred_username", "username", "sub")
             ?? throw new InvalidOperationException("The verified identity has no usable username.");
-        var groups = All("groups").SelectMany(ParseGroupValue).ToHashSet(StringComparer.Ordinal);
+        var groups = All(groupsClaim).SelectMany(ParseGroupValue).ToHashSet(StringComparer.Ordinal);
         var picture = First("picture");
-        return new VerifiedOidcIdentity(issuer, subject, username, First("name", "display_name"), picture, groups);
+        return new VerifiedOidcIdentity(providerId, issuer, subject, username, First("name", "display_name"), picture, groups);
 
         string? First(params string[] names)
         {

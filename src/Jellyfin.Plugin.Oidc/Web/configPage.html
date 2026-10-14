@@ -7,202 +7,152 @@
 </head>
 <body>
 <div id="OidcSettingsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox,emby-input,emby-select">
-    <div data-role="content">
-        <div class="content-primary">
-            <h1>Pocket ID sign-in</h1>
-            <p>Connect Jellyfin to one OpenID Connect provider. The callback validates state, PKCE, nonce, issuer, audience, signature, and token lifetime before a one-use Jellyfin credential is issued.</p>
+    <div data-role="content"><div class="content-primary">
+        <h1>OpenID Connect</h1>
+        <p>Configure one or more OpenID Connect providers. Each provider has its own client, group rules, account provisioning, administrator mapping, and profile picture settings.</p>
+        <h2>Jellyfin server URL</h2>
+        <div class="inputContainer"><input id="publicBaseUrl" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Public Jellyfin HTTPS URL used by browsers</label></div>
+        <p>OIDC requires HTTPS on the Jellyfin URL. Configure TLS on Jellyfin or its reverse proxy before enabling a provider.</p>
+        <p>Callback URI for every provider: <code id="callbackUri">Enter a public HTTPS Jellyfin URL.</code></p>
+        <button id="saveServer" is="emby-button" type="button" class="raised button-submit"><span>Save Jellyfin URL</span></button>
+        <p id="serverResult" role="status" aria-live="polite"></p>
 
-            <label class="emby-checkbox-label"><input id="enableOidc" type="checkbox" is="emby-checkbox"><span>Enable Pocket ID sign-in</span></label>
-            <div class="inputContainer"><input id="issuer" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Pocket ID issuer URL (for example https://id.example.com)</label></div>
-            <div class="inputContainer"><input id="publicBaseUrl" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Public Jellyfin URL used by browsers</label></div>
-            <p>Use HTTPS for normal use. HTTP is accepted only for localhost or private IPv4 test servers such as 10.x.x.x, 172.16–31.x.x, and 192.168.x.x.</p>
-            <div class="inputContainer"><input id="clientId" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Pocket ID client ID</label></div>
-            <div class="inputContainer"><input id="clientSecret" is="emby-input" type="password" autocomplete="new-password"><label class="inputLabel inputLabel-float">Client secret (optional; leave blank to keep saved value)</label></div>
-            <p id="secretStatus" aria-live="polite"></p>
-            <p>Redirect URI to add to the Pocket ID OIDC client: <code id="callbackUri">Set the public Jellyfin URL to generate this value.</code></p>
+        <h2>Identity providers</h2>
+        <div id="providers"></div>
+        <button id="addProvider" is="emby-button" type="button" class="raised"><span>Add provider</span></button>
+        <p id="pageResult" role="status" aria-live="polite"></p>
 
-            <h2>Who may sign in</h2>
-            <div class="inputContainer"><input id="allowedGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Required Pocket ID group</label></div>
-            <label class="emby-checkbox-label"><input id="enableProvisioning" type="checkbox" is="emby-checkbox"><span>Create Jellyfin accounts for users in the required group</span></label>
-            <p>Accounts are linked by the immutable issuer and subject values. Jellyfin accounts with a matching username are not silently linked.</p>
-            <div class="inputContainer"><input id="administratorGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Pocket ID group mapped to Jellyfin administrator</label></div>
-            <label class="emby-checkbox-label"><input id="enableAdminMapping" type="checkbox" is="emby-checkbox"><span>Allow this group to grant and revoke Jellyfin administrator access</span></label>
-            <p>Admin group mapping is disabled until you explicitly enable it. A local Jellyfin administrator is not demoted by this mapping.</p>
-
-            <h2>Profile picture</h2>
-            <div class="selectContainer"><select id="avatarMode" is="emby-select"><option value="ImportOnce">Import once; keep later Jellyfin edits</option><option value="AlwaysUpdate">Update from Pocket ID on every login</option><option value="Disabled">Do not sync</option></select><label class="selectLabel">Avatar ownership</label></div>
-            <p>Pictures are fetched from HTTPS on the configured Pocket ID host only. JPEG and PNG images are limited to 2 MiB and 4096 × 4096 pixels.</p>
-
-            <button id="saveSettings" is="emby-button" type="button" class="raised button-submit block"><span>Save OpenID Connect settings</span></button>
-            <p id="settingsResult" role="status" aria-live="polite"></p>
-
-            <h2>Try Pocket ID sign-in</h2>
-            <p>This opens Pocket ID in a separate window. On return, Jellyfin creates or resolves the user, syncs configured access and profile settings, and establishes a normal Jellyfin browser session for that user.</p>
-            <button id="startLogin" is="emby-button" type="button" class="raised button-submit block"><span>Sign in with Pocket ID</span></button>
-            <p id="loginResult" role="status" aria-live="polite"></p>
-
-            <details>
-                <summary>Phase 0 mock login check</summary>
-                <p>The temporary Phase 0 mock flow is disabled by default and should only be used on a private test server.</p>
-                <label class="emby-checkbox-label"><input id="mockEnabled" type="checkbox" is="emby-checkbox"><span>Enable the temporary mock login flow</span></label>
-                <button id="saveMock" is="emby-button" type="button" class="raised button-submit block"><span>Save mock setting</span></button>
-                <div class="inputContainer"><input id="userId" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Existing mock test user's Jellyfin ID</label></div>
-                <button id="runMock" is="emby-button" type="button" class="raised button-submit block"><span>Run Phase 0 mock login</span></button>
-                <p id="mockResult" role="status" aria-live="polite"></p>
-            </details>
-        </div>
-    </div>
+        <template id="providerTemplate">
+            <section class="providerCard detailSection" style="margin:1.5em 0;padding:1em;border:1px solid #555;border-radius:4px">
+                <h3 class="providerHeading">New provider</h3>
+                <label class="emby-checkbox-label"><input class="enabled" type="checkbox" is="emby-checkbox"><span>Enable sign-in</span></label>
+                <div class="inputContainer"><input class="name" is="emby-input" type="text" maxlength="80"><label class="inputLabel inputLabel-float">Provider display name</label></div>
+                <div class="inputContainer"><input class="issuer" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Issuer URL (HTTPS; issuer base or discovery URL)</label></div>
+                <div class="inputContainer"><input class="clientId" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Client ID</label></div>
+                <div class="inputContainer"><input class="scopes" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Scopes (space-separated; must include openid)</label></div>
+                <div class="inputContainer"><input class="usernameClaim" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Username claim</label></div>
+                <div class="inputContainer"><input class="groupsClaim" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Groups claim</label></div>
+                <div class="inputContainer"><input class="clientSecret" is="emby-input" type="password" autocomplete="new-password"><label class="inputLabel inputLabel-float">Client secret (optional; blank keeps saved value)</label></div>
+                <p class="secretStatus"></p>
+                <h4>Access and account mapping</h4>
+                <div class="inputContainer"><input class="allowedGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Required group</label></div>
+                <label class="emby-checkbox-label"><input class="provision" type="checkbox" is="emby-checkbox"><span>Create Jellyfin users in the required group</span></label>
+                <div class="inputContainer"><input class="adminGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Administrator group</label></div>
+                <label class="emby-checkbox-label"><input class="adminMapping" type="checkbox" is="emby-checkbox"><span>Allow this group to grant and revoke Jellyfin administrator access</span></label>
+                <p>Existing local administrators are not demoted. Provider grants are tracked independently.</p>
+                <h4>Profile picture</h4>
+                <div class="selectContainer"><select class="avatarMode" is="emby-select"><option value="ImportOnce">Import once; keep later Jellyfin edits</option><option value="AlwaysUpdate">Update from provider on every login</option><option value="Disabled">Do not sync</option></select><label class="selectLabel">Avatar ownership</label></div>
+                <p>JPEG/PNG images up to 2 MiB and 4096 × 4096 pixels are accepted from the configured issuer host over HTTPS.</p>
+                <div style="display:flex;gap:.75em;flex-wrap:wrap">
+                    <button class="saveProvider raised button-submit" is="emby-button" type="button"><span>Save provider</span></button>
+                    <button class="loginProvider raised" is="emby-button" type="button"><span>Sign in with this provider</span></button>
+                    <button class="deleteProvider raised" is="emby-button" type="button"><span>Delete provider</span></button>
+                </div>
+                <p class="providerResult" role="status" aria-live="polite"></p>
+            </section>
+        </template>
+    </div></div>
 <script>
 (function () {
-    const pluginId = 'b51a78b4-74b0-4e18-9f69-8e7f79203856';
     const page = document.querySelector('#OidcSettingsPage');
-    const settingsResult = page.querySelector('#settingsResult');
-    const loginResult = page.querySelector('#loginResult');
-    const mockResult = page.querySelector('#mockResult');
     const byId = id => page.querySelector('#' + id);
+    const providers = byId('providers');
+    const api = async (path, method, body) => ApiClient.ajax({
+        type: method || 'GET', url: ApiClient.getUrl(path), dataType: 'json',
+        contentType: 'application/json', data: body === undefined ? undefined : JSON.stringify(body)
+    });
 
-    function newDeviceId() {
-        return 'oidc-check-' + Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
-    }
-
-    async function api(path, method, body) {
-        const response = await ApiClient.ajax({
-            type: method || 'GET',
-            url: ApiClient.getUrl(path),
-            dataType: 'json',
-            contentType: 'application/json',
-            data: body === undefined ? undefined : JSON.stringify(body)
+    function makeCard(provider) {
+        const card = byId('providerTemplate').content.firstElementChild.cloneNode(true);
+        const field = name => card.querySelector('.' + name);
+        card.dataset.providerId = provider ? provider.Id : '';
+        field('providerHeading').textContent = provider ? provider.Name : 'New provider';
+        field('name').value = provider ? provider.Name : '';
+        field('enabled').checked = provider ? provider.Enabled : false;
+        field('issuer').value = provider ? provider.Issuer : '';
+        field('clientId').value = provider ? provider.ClientId : '';
+        field('scopes').value = provider ? provider.Scopes : 'openid profile email groups';
+        field('usernameClaim').value = provider ? provider.UsernameClaim : 'preferred_username';
+        field('groupsClaim').value = provider ? provider.GroupsClaim : 'groups';
+        field('secretStatus').textContent = provider && provider.ClientSecretConfigured ? 'A client secret is saved. Leave blank to keep it.' : 'No client secret saved. Public PKCE clients may leave this blank.';
+        field('allowedGroup').value = provider ? provider.AllowedGroup : 'jellyfin_users';
+        field('provision').checked = provider ? provider.EnableUserProvisioning : false;
+        field('adminGroup').value = provider ? provider.AdministratorGroup : 'jellyfin_admins';
+        field('adminMapping').checked = provider ? provider.EnableAdministratorGroupMapping : false;
+        field('avatarMode').value = provider ? provider.AvatarSyncMode : 'ImportOnce';
+        field('deleteProvider').hidden = !provider;
+        field('loginProvider').disabled = !provider || !provider.Enabled;
+        field('enabled').addEventListener('change', () => field('loginProvider').disabled = !card.dataset.providerId || !field('enabled').checked);
+        card.querySelector('.saveProvider').addEventListener('click', async () => {
+            const result = field('providerResult');
+            result.textContent = 'Saving…';
+            const body = {
+                Name: field('name').value.trim(), Enabled: field('enabled').checked,
+                Issuer: field('issuer').value.trim(), ClientId: field('clientId').value.trim(),
+                Scopes: field('scopes').value.trim(), UsernameClaim: field('usernameClaim').value.trim(), GroupsClaim: field('groupsClaim').value.trim(),
+                ClientSecret: field('clientSecret').value,
+                AllowedGroup: field('allowedGroup').value.trim(), AdministratorGroup: field('adminGroup').value.trim(),
+                EnableUserProvisioning: field('provision').checked,
+                EnableAdministratorGroupMapping: field('adminMapping').checked, AvatarSyncMode: field('avatarMode').value
+            };
+            try {
+                if (card.dataset.providerId) await api('Plugins/Oidc/Settings/providers/' + encodeURIComponent(card.dataset.providerId), 'PUT', body);
+                else await api('Plugins/Oidc/Settings/providers', 'POST', body);
+                field('clientSecret').value = '';
+                result.textContent = 'Provider saved. Add the callback URI shown above to this provider’s client configuration.';
+                await loadSettings();
+            } catch (error) { result.textContent = 'Could not save. Check the values and ensure Jellyfin uses HTTPS before enabling OIDC.'; }
         });
-        return response;
-    }
-
-    function displaySettings(config) {
-        byId('enableOidc').checked = config.EnableOidc;
-        byId('issuer').value = config.Issuer || '';
-        byId('publicBaseUrl').value = config.PublicBaseUrl || location.origin + '/';
-        byId('clientId').value = config.ClientId || '';
-        byId('allowedGroup').value = config.AllowedGroup || 'jellyfin_users';
-        byId('administratorGroup').value = config.AdministratorGroup || 'jellyfin_admins';
-        byId('enableProvisioning').checked = config.EnableUserProvisioning;
-        byId('enableAdminMapping').checked = config.EnableAdministratorGroupMapping;
-        byId('avatarMode').value = config.AvatarSyncMode || 'ImportOnce';
-        byId('callbackUri').textContent = config.CallbackUri;
-        byId('secretStatus').textContent = config.ClientSecretConfigured ? 'A client secret is saved. Leave the field blank to keep it.' : 'No client secret is saved. Public PKCE clients may leave this blank.';
+        field('deleteProvider').addEventListener('click', async () => {
+            if (!card.dataset.providerId || !window.confirm('Delete this provider? Its plugin-managed administrator grants will be removed.')) return;
+            try { await api('Plugins/Oidc/Settings/providers/' + encodeURIComponent(card.dataset.providerId), 'DELETE'); await loadSettings(); }
+            catch (error) { field('providerResult').textContent = 'Could not delete this provider.'; }
+        });
+        field('loginProvider').addEventListener('click', () => startLogin(card.dataset.providerId, field('name').value));
+        providers.appendChild(card);
+        return card;
     }
 
     async function loadSettings() {
-        const [config, pluginConfig] = await Promise.all([
-            api('Plugins/Oidc/Settings'),
-            ApiClient.getPluginConfiguration(pluginId)
-        ]);
-        displaySettings(config);
-        byId('mockEnabled').checked = pluginConfig.EnablePhaseZeroMockLogin === true;
+        const config = await api('Plugins/Oidc/Settings');
+        byId('publicBaseUrl').value = config.PublicBaseUrl || location.origin + '/';
+        byId('callbackUri').textContent = config.CallbackUri;
+        providers.replaceChildren();
+        config.Providers.forEach(provider => makeCard(provider));
     }
 
-    page.addEventListener('pageshow', function () {
-        loadSettings().catch(function () { settingsResult.textContent = 'Could not load plugin settings. Sign in as a Jellyfin administrator and reload this page.'; });
-    });
-
-    byId('saveSettings').addEventListener('click', async function () {
-        const button = this;
-        button.disabled = true;
-        settingsResult.textContent = 'Saving…';
+    byId('saveServer').addEventListener('click', async () => {
+        byId('serverResult').textContent = 'Saving…';
         try {
-            const saved = await api('Plugins/Oidc/Settings', 'PUT', {
-                EnableOidc: byId('enableOidc').checked,
-                Issuer: byId('issuer').value.trim(),
-                PublicBaseUrl: byId('publicBaseUrl').value.trim(),
-                ClientId: byId('clientId').value.trim(),
-                ClientSecret: byId('clientSecret').value,
-                AllowedGroup: byId('allowedGroup').value.trim(),
-                AdministratorGroup: byId('administratorGroup').value.trim(),
-                EnableUserProvisioning: byId('enableProvisioning').checked,
-                EnableAdministratorGroupMapping: byId('enableAdminMapping').checked,
-                AvatarSyncMode: byId('avatarMode').value
-            });
-            byId('clientSecret').value = '';
-            displaySettings(saved);
-            settingsResult.textContent = 'Settings saved. Add the displayed redirect URI to the Pocket ID OIDC client.';
-        } catch (error) {
-            settingsResult.textContent = 'Could not save settings. Check required values and try again.';
-        } finally {
-            button.disabled = false;
-        }
+            const saved = await api('Plugins/Oidc/Settings/server', 'PUT', { PublicBaseUrl: byId('publicBaseUrl').value.trim() });
+            byId('callbackUri').textContent = saved.CallbackUri;
+            byId('serverResult').textContent = 'Jellyfin URL saved.';
+        } catch (error) { byId('serverResult').textContent = 'Could not save. The public Jellyfin URL must use HTTPS.'; }
     });
+    byId('addProvider').addEventListener('click', () => makeCard(null));
 
-    byId('startLogin').addEventListener('click', function () {
-        if (!byId('enableOidc').checked) {
-            loginResult.textContent = 'Save the settings with Pocket ID sign-in enabled first.';
-            return;
-        }
-        const popup = window.open(ApiClient.getUrl('Plugins/Oidc/Oidc/login'), 'jellyfin-pocket-id-login', 'popup,width=520,height=720');
-        if (!popup) {
-            loginResult.textContent = 'Allow pop-ups for this Jellyfin site, then try again.';
-            return;
-        }
-        loginResult.textContent = 'Complete sign-in in the Pocket ID window…';
-        const onMessage = async function (event) {
+    async function startLogin(providerId, providerName) {
+        const popup = window.open(ApiClient.getUrl('Plugins/Oidc/Oidc/login/' + encodeURIComponent(providerId)), 'jellyfin-oidc-' + providerId, 'popup,width=520,height=720');
+        if (!popup) { byId('pageResult').textContent = 'Allow pop-ups for this Jellyfin site, then try again.'; return; }
+        byId('pageResult').textContent = 'Complete sign-in with ' + providerName + '…';
+        const onMessage = async event => {
             if (event.origin !== location.origin || event.source !== popup || !event.data || event.data.type !== 'jellyfin-oidc-login') return;
-            window.removeEventListener('message', onMessage);
-            popup.close();
+            window.removeEventListener('message', onMessage); popup.close();
             try {
                 const session = await ApiClient.authenticateUserByName(event.data.username, event.data.credential);
-                if (!session || !session.AccessToken || !session.User) throw new Error('No Jellyfin session was returned.');
+                if (!session || !session.AccessToken || !session.User) throw new Error('No Jellyfin session returned.');
                 const user = await ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json' });
-                if (user.Id.replaceAll('-', '') !== session.User.Id.replaceAll('-', '')) throw new Error('The session resolved to a different Jellyfin user.');
+                if (user.Id.replaceAll('-', '') !== session.User.Id.replaceAll('-', '')) throw new Error('Unexpected Jellyfin user.');
                 const admin = user.Policy && user.Policy.IsAdministrator === true;
-                const avatar = Boolean(user.PrimaryImageTag);
-                loginResult.textContent = 'Signed in as ' + user.Name + (admin ? ' with administrator access' : '') + (avatar ? '; Pocket ID profile picture is present.' : '; no profile picture was imported.');
+                byId('pageResult').textContent = 'Signed in as ' + user.Name + (admin ? ' with administrator access.' : '.') + (user.PrimaryImageTag ? ' Profile picture is present.' : ' No profile picture was imported.');
                 window.location.hash = '#/home';
-            } catch (error) {
-                loginResult.textContent = 'Pocket ID was verified, but Jellyfin could not finish the native sign-in. Check the server log and plugin settings.';
-            }
+            } catch (error) { byId('pageResult').textContent = 'Identity verified, but Jellyfin could not finish native sign-in. Check the server log.'; }
         };
         window.addEventListener('message', onMessage);
-        const timeout = setTimeout(function () {
-            window.removeEventListener('message', onMessage);
-            if (!popup.closed) popup.close();
-            if (loginResult.textContent.indexOf('Complete sign-in') === 0) loginResult.textContent = 'Sign-in window closed or timed out. Try again.';
-        }, 10 * 60 * 1000);
-        // Clear the timeout when the callback completes.
-        window.addEventListener('message', function clearTimeoutOnSuccess(event) {
-            if (event.source === popup && event.data && event.data.type === 'jellyfin-oidc-login') {
-                clearTimeout(timeout);
-                window.removeEventListener('message', clearTimeoutOnSuccess);
-            }
-        });
-    });
+        setTimeout(() => { window.removeEventListener('message', onMessage); if (!popup.closed) popup.close(); }, 10 * 60 * 1000);
+    }
 
-    byId('saveMock').addEventListener('click', async function () {
-        try {
-            const config = await ApiClient.getPluginConfiguration(pluginId);
-            config.EnablePhaseZeroMockLogin = byId('mockEnabled').checked;
-            const updateResult = await ApiClient.updatePluginConfiguration(pluginId, config);
-            Dashboard.processPluginConfigurationUpdateResult(updateResult);
-            mockResult.textContent = byId('mockEnabled').checked ? 'Mock login enabled.' : 'Mock login disabled.';
-        } catch (error) {
-            mockResult.textContent = 'Could not save the Phase 0 setting.';
-        }
-    });
-
-    byId('runMock').addEventListener('click', async function () {
-        const button = this;
-        button.disabled = true;
-        try {
-            const userId = byId('userId').value.trim();
-            if (!/^[0-9a-fA-F-]{32,36}$/.test(userId)) throw new Error('Enter an existing Jellyfin user ID.');
-            const issued = await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Plugins/Oidc/Phase0/mock-login/' + encodeURIComponent(userId)), dataType: 'json' });
-            const session = await ApiClient.authenticateUserByName(issued.Username, issued.Credential);
-            if (!session || !session.AccessToken) throw new Error('No Jellyfin session was returned.');
-            const user = await ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json' });
-            if (user.Id.replaceAll('-', '') !== userId.replaceAll('-', '')) throw new Error('Unexpected user in native session.');
-            mockResult.textContent = 'Passed: Jellyfin established a native session for ' + user.Name + '.';
-        } catch (error) {
-            mockResult.textContent = 'Mock login failed. Check the test user provider and Phase 0 setting.';
-        } finally {
-            button.disabled = false;
-        }
-    });
+    page.addEventListener('pageshow', () => loadSettings().catch(() => byId('pageResult').textContent = 'Could not load settings. Sign in as a Jellyfin administrator and reload.'));
 }());
 </script>
 </div>
