@@ -1,6 +1,6 @@
 # Jellyfin OpenID Connect plugin
 
-This repository begins with a Jellyfin 12 and .NET 10 compatibility spike. It does not yet implement OIDC protocol handling. The first milestone checks whether a verified external identity can be adapted to Jellyfin's native authentication and session flow without changing Jellyfin itself.
+This repository is a Jellyfin 12 and .NET 10 OpenID Connect plugin. Phase 0 proved that an external identity can use Jellyfin's native authentication and session flow without changing Jellyfin itself. The current UAT milestone adds Pocket ID authorization code login and guarded account synchronization.
 
 ## Phase 0 implementation
 
@@ -13,6 +13,25 @@ This repository begins with a Jellyfin 12 and .NET 10 compatibility spike. It do
 
 The mock flow is for an isolated local test server only. It is disabled by default, requires an administrator to issue a credential, and should be removed before a production release. It is not an OIDC implementation and must not be exposed to untrusted users.
 
+## Pocket ID sign-in (UAT)
+
+The current milestone supports one Pocket ID issuer, authorization code flow with PKCE S256, state and nonce validation, signed ID-token validation against discovery/JWKS, immutable `(issuer, subject)` account links, native Jellyfin sessions, optional user provisioning by group, explicit administrator group mapping, and profile picture import.
+
+In Jellyfin, open **Dashboard → Plugins → OpenID Connect** and set:
+
+- **Pocket ID issuer URL** to the Pocket ID base URL, such as `https://id.example.com`.
+- **Public Jellyfin URL** to the exact origin users open. HTTPS is required for normal use; HTTP is accepted only for localhost or private IPv4 UAT addresses.
+- **Client ID** and, for a confidential client, the client secret. The secret is protected with Jellyfin's data-protection keys and is never returned to the browser.
+- **Required Pocket ID group** to `jellyfin_users`, then enable account creation for members of that group.
+- **Administrator group** to `jellyfin_admins`, then enable administrator group mapping. This opt-in grants and revokes Jellyfin admin only for roles the plugin itself assigned; existing local admins remain protected.
+- **Avatar ownership** to **Import once** to copy the Pocket ID picture while preserving future Jellyfin edits.
+
+Save the settings and copy the generated callback URI into the Pocket ID OIDC client. In Pocket ID, create an OIDC client, add that exact redirect URI, allow the `jellyfin_users` and `jellyfin_admins` groups to use the client (new clients may be restricted by default), and assign `yeshwanth` to both groups. The plugin requests `openid profile email groups`; Pocket ID's `profile` scope supplies `preferred_username` and `picture`, while `groups` supplies group names. The Pocket ID issuer must be reachable from the Jellyfin server. This UAT build expects discovery, authorization, token, and signing-key endpoints to use the issuer's HTTPS host; profile pictures must be JPEG or PNG from that host.
+
+Use **Sign in with Pocket ID** from the plugin page to test. On success the current Jellyfin Web session switches to the provisioned account. Confirm the page reports administrator access and an imported picture. The account is linked to Pocket ID's immutable subject; an existing Jellyfin username is never silently claimed. If `yeshwanth` already exists in Jellyfin, this initial UAT flow fails safely and requires a later explicit account-linking workflow.
+
+This milestone is an initial UAT implementation. It does not yet provide a login button on Jellyfin's unauthenticated login screen, account linking UI, periodic background role refresh, or broader avatar formats. Disable administrator mapping or OIDC if you need to stop this integration. Preserve at least one local administrator login for recovery.
+
 ## Install in Jellyfin 12.2
 
 Add this URL in **Dashboard → Plugins → Repositories**:
@@ -21,7 +40,7 @@ Add this URL in **Dashboard → Plugins → Repositories**:
 https://raw.githubusercontent.com/lissosia/jellyfin-oidc-plugin/main/manifest.json
 ```
 
-Open the plugin catalog, install **OpenID Connect** version **0.1.0.1**, then restart Jellyfin. The repository manifest references a compiled release ZIP and contains its actual MD5 checksum, as required by Jellyfin's installer. `build.yaml` is build metadata; `manifest.json` is the installable repository index.
+Open the plugin catalog, install the latest **OpenID Connect** version, then restart Jellyfin. The repository manifest references a compiled release ZIP and contains its actual MD5 checksum, as required by Jellyfin's installer. `build.yaml` is build metadata; `manifest.json` is the installable repository index.
 
 Open the plugin's configuration page, enable mock login, and create a disposable non-administrator test user. In that user's settings, select **OIDC Phase 0 Mock** as its authentication provider. Keep the local administrator assigned to **Default**. Enter the test user's ID on the plugin page and run the mock login check. The check creates a separate device session, verifies `/Users/Me`, then logs that session out.
 
@@ -36,7 +55,7 @@ dotnet restore Jellyfin.Plugin.Oidc.slnx
 dotnet build Jellyfin.Plugin.Oidc.slnx --no-restore
 ```
 
-The build targets Jellyfin 12's `Jellyfin.Controller` and `Jellyfin.Model` 12.2.0 packages. Jellyfin assemblies are excluded from runtime output so the server supplies its own compatible assemblies.
+The build targets Jellyfin 12's `Jellyfin.Controller` and `Jellyfin.Model` 12.2.0 packages. Jellyfin assemblies are excluded from runtime output so the server supplies its own compatible assemblies. The release ZIP includes the Microsoft IdentityModel runtime dependencies used to validate OIDC tokens.
 
 ## Phase 0 host check
 

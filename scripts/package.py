@@ -22,10 +22,16 @@ output = ROOT / "artifacts"
 output.mkdir(exist_ok=True)
 archive = output / f"jellyfin-oidc_{VERSION}.zip"
 with ZipFile(archive, "w", compression=ZIP_DEFLATED) as package:
-    for source, name in [
-        (PROJECT.parent / "bin/Release/net10.0/Jellyfin.Plugin.Oidc.dll", "Jellyfin.Plugin.Oidc.dll"),
-        (ROOT / "LICENSE", "LICENSE"),
-    ]:
+    runtime = PROJECT.parent / "bin/Release/net10.0"
+    included = [(runtime / "Jellyfin.Plugin.Oidc.dll", "Jellyfin.Plugin.Oidc.dll"), (ROOT / "LICENSE", "LICENSE")]
+    included.extend((source, source.name) for source in sorted(runtime.glob("Microsoft.IdentityModel.*.dll")))
+    included.extend((source, source.name) for source in sorted(runtime.glob("Microsoft.Bcl.Cryptography.dll")))
+    jwt = runtime / "System.IdentityModel.Tokens.Jwt.dll"
+    if jwt.exists():
+        included.append((jwt, jwt.name))
+    for source, name in included:
+        if not source.exists():
+            raise SystemExit(f"Required package input is missing: {source}")
         entry = ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
         entry.compress_type = ZIP_DEFLATED
         entry.external_attr = 0o644 << 16
@@ -33,13 +39,13 @@ with ZipFile(archive, "w", compression=ZIP_DEFLATED) as package:
 manifest = [{
     "guid": "b51a78b4-74b0-4e18-9f69-8e7f79203856",
     "name": "OpenID Connect",
-    "description": "Phase 0 compatibility spike for Jellyfin 12. Mock login is disabled by default. For UAT use only.",
-    "overview": "Native session and Quick Connect compatibility spike",
+    "description": "Pocket ID OpenID Connect sign-in for Jellyfin 12. Supports PKCE, guarded provisioning, mapped admin roles, and profile image import.",
+    "overview": "Pocket ID OIDC sign-in with Jellyfin native sessions",
     "owner": "lissosia",
     "category": "Authentication",
     "versions": [{
         "version": VERSION,
-        "changelog": "Initial installable Phase 0 compatibility spike.",
+        "changelog": "Pocket ID authorization code + PKCE, native Jellyfin sessions, guarded user provisioning, explicit group to administrator mapping, profile picture sync, and integrated settings page.",
         "targetAbi": "12.2.0.0",
         "sourceUrl": f"https://github.com/lissosia/jellyfin-oidc-plugin/releases/download/v{VERSION}/{archive.name}",
         "checksum": hashlib.md5(archive.read_bytes()).hexdigest(),

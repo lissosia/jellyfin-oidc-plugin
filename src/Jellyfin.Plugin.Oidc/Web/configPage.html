@@ -3,156 +3,203 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OIDC Phase 0</title>
+    <title>OpenID Connect</title>
 </head>
 <body>
-<div id="OidcPhaseZeroPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox,emby-input">
+<div id="OidcSettingsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox,emby-input,emby-select">
     <div data-role="content">
         <div class="content-primary">
-            <h1>OIDC Phase 0 compatibility spike</h1>
-            <p>This mock flow is for a private Jellyfin 12 test server only. It issues a two-minute, single-use credential for an existing account. The mock login endpoint is disabled by default.</p>
-            <label class="emby-checkbox-label">
-                <input id="mockEnabled" type="checkbox" is="emby-checkbox">
-                <span>Enable the temporary mock login flow</span>
-            </label>
-            <button id="save" is="emby-button" type="button" class="raised button-submit block"><span>Save</span></button>
+            <h1>Pocket ID sign-in</h1>
+            <p>Connect Jellyfin to one OpenID Connect provider. The callback validates state, PKCE, nonce, issuer, audience, signature, and token lifetime before a one-use Jellyfin credential is issued.</p>
 
-            <h2>Exercise a native Jellyfin session</h2>
-            <p>Assign a disposable test user to the OIDC Phase 0 Mock authentication provider, then enter its Jellyfin ID. This page asks the plugin for a mock external identity, exchanges its one-time credential through <code>/Users/AuthenticateByName</code>, and checks the resulting native session. The access token is kept in memory and not displayed.</p>
-            <div class="inputContainer">
-                <input id="userId" is="emby-input" type="text" autocomplete="off" required>
-                <label class="inputLabel inputLabel-float">Existing Jellyfin user ID</label>
-            </div>
-            <button id="run" is="emby-button" type="button" class="raised button-submit block"><span>Run mock login</span></button>
-            <p id="result" role="status" aria-live="polite"></p>
+            <label class="emby-checkbox-label"><input id="enableOidc" type="checkbox" is="emby-checkbox"><span>Enable Pocket ID sign-in</span></label>
+            <div class="inputContainer"><input id="issuer" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Pocket ID issuer URL (for example https://id.example.com)</label></div>
+            <div class="inputContainer"><input id="publicBaseUrl" is="emby-input" type="url" autocomplete="url"><label class="inputLabel inputLabel-float">Public Jellyfin URL used by browsers</label></div>
+            <p>Use HTTPS for normal use. HTTP is accepted only for localhost or private IPv4 test servers such as 10.x.x.x, 172.16–31.x.x, and 192.168.x.x.</p>
+            <div class="inputContainer"><input id="clientId" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Pocket ID client ID</label></div>
+            <div class="inputContainer"><input id="clientSecret" is="emby-input" type="password" autocomplete="new-password"><label class="inputLabel inputLabel-float">Client secret (optional; leave blank to keep saved value)</label></div>
+            <p id="secretStatus" aria-live="polite"></p>
+            <p>Redirect URI to add to the Pocket ID OIDC client: <code id="callbackUri">Set the public Jellyfin URL to generate this value.</code></p>
 
-            <h2>Exercise Jellyfin Quick Connect</h2>
-            <p>This check uses Jellyfin's own initiation, authenticated authorization and device-session endpoints. It creates a temporary Quick Connect session for the currently signed-in administrator.</p>
-            <button id="runQuickConnect" is="emby-button" type="button" class="raised button-submit block"><span>Run Quick Connect check</span></button>
-            <p id="quickConnectResult" role="status" aria-live="polite"></p>
+            <h2>Who may sign in</h2>
+            <div class="inputContainer"><input id="allowedGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Required Pocket ID group</label></div>
+            <label class="emby-checkbox-label"><input id="enableProvisioning" type="checkbox" is="emby-checkbox"><span>Create Jellyfin accounts for users in the required group</span></label>
+            <p>Accounts are linked by the immutable issuer and subject values. Jellyfin accounts with a matching username are not silently linked.</p>
+            <div class="inputContainer"><input id="administratorGroup" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Pocket ID group mapped to Jellyfin administrator</label></div>
+            <label class="emby-checkbox-label"><input id="enableAdminMapping" type="checkbox" is="emby-checkbox"><span>Allow this group to grant and revoke Jellyfin administrator access</span></label>
+            <p>Admin group mapping is disabled until you explicitly enable it. A local Jellyfin administrator is not demoted by this mapping.</p>
+
+            <h2>Profile picture</h2>
+            <div class="selectContainer"><select id="avatarMode" is="emby-select"><option value="ImportOnce">Import once; keep later Jellyfin edits</option><option value="AlwaysUpdate">Update from Pocket ID on every login</option><option value="Disabled">Do not sync</option></select><label class="selectLabel">Avatar ownership</label></div>
+            <p>Pictures are fetched from HTTPS on the configured Pocket ID host only. JPEG and PNG images are limited to 2 MiB and 4096 × 4096 pixels.</p>
+
+            <button id="saveSettings" is="emby-button" type="button" class="raised button-submit block"><span>Save OpenID Connect settings</span></button>
+            <p id="settingsResult" role="status" aria-live="polite"></p>
+
+            <h2>Try Pocket ID sign-in</h2>
+            <p>This opens Pocket ID in a separate window. On return, Jellyfin creates or resolves the user, syncs configured access and profile settings, and establishes a normal Jellyfin browser session for that user.</p>
+            <button id="startLogin" is="emby-button" type="button" class="raised button-submit block"><span>Sign in with Pocket ID</span></button>
+            <p id="loginResult" role="status" aria-live="polite"></p>
+
+            <details>
+                <summary>Phase 0 mock login check</summary>
+                <p>The temporary Phase 0 mock flow is disabled by default and should only be used on a private test server.</p>
+                <label class="emby-checkbox-label"><input id="mockEnabled" type="checkbox" is="emby-checkbox"><span>Enable the temporary mock login flow</span></label>
+                <button id="saveMock" is="emby-button" type="button" class="raised button-submit block"><span>Save mock setting</span></button>
+                <div class="inputContainer"><input id="userId" is="emby-input" type="text" autocomplete="off"><label class="inputLabel inputLabel-float">Existing mock test user's Jellyfin ID</label></div>
+                <button id="runMock" is="emby-button" type="button" class="raised button-submit block"><span>Run Phase 0 mock login</span></button>
+                <p id="mockResult" role="status" aria-live="polite"></p>
+            </details>
         </div>
     </div>
 <script>
 (function () {
     const pluginId = 'b51a78b4-74b0-4e18-9f69-8e7f79203856';
-    const page = document.querySelector('#OidcPhaseZeroPage');
-    const enabled = page.querySelector('#mockEnabled');
-    const result = page.querySelector('#result');
-    const quickConnectResult = page.querySelector('#quickConnectResult');
+    const page = document.querySelector('#OidcSettingsPage');
+    const settingsResult = page.querySelector('#settingsResult');
+    const loginResult = page.querySelector('#loginResult');
+    const mockResult = page.querySelector('#mockResult');
+    const byId = id => page.querySelector('#' + id);
 
     function newDeviceId() {
-        // getRandomValues also works on private HTTP UAT servers.
-        return 'oidc-check-' + Array.from(crypto.getRandomValues(new Uint8Array(16)),
-            value => value.toString(16).padStart(2, '0')).join('');
+        return 'oidc-check-' + Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
     }
 
-    // Give each check a separate device so it cannot replace the administrator's session.
-    function deviceHeader(deviceId, token) {
-        return 'MediaBrowser Client="OIDC Phase 0", Device="Compatibility Check", DeviceId="'
-            + deviceId + '", Version="0.1.0"' + (token ? ', Token="' + token + '"' : '');
-    }
-
-    async function deviceRequest(path, deviceId, token, body, method) {
-        const response = await fetch(ApiClient.getUrl(path), {
-            method: method || 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': deviceHeader(deviceId, token)
-            },
-            body: body === undefined ? undefined : JSON.stringify(body)
+    async function api(path, method, body) {
+        const response = await ApiClient.ajax({
+            type: method || 'GET',
+            url: ApiClient.getUrl(path),
+            dataType: 'json',
+            contentType: 'application/json',
+            data: body === undefined ? undefined : JSON.stringify(body)
         });
-        if (!response.ok) {
-            throw new Error(path + ' returned HTTP ' + response.status + '.');
-        }
-        if (response.status === 204) return;
-        return response.json();
+        return response;
     }
 
-    page.addEventListener('pageshow', async function () {
-        try {
-            const config = await ApiClient.getPluginConfiguration(pluginId);
-            enabled.checked = config.EnablePhaseZeroMockLogin === true;
-        } catch (error) {
-            result.textContent = 'Could not load configuration.';
-        }
+    function displaySettings(config) {
+        byId('enableOidc').checked = config.EnableOidc;
+        byId('issuer').value = config.Issuer || '';
+        byId('publicBaseUrl').value = config.PublicBaseUrl || location.origin + '/';
+        byId('clientId').value = config.ClientId || '';
+        byId('allowedGroup').value = config.AllowedGroup || 'jellyfin_users';
+        byId('administratorGroup').value = config.AdministratorGroup || 'jellyfin_admins';
+        byId('enableProvisioning').checked = config.EnableUserProvisioning;
+        byId('enableAdminMapping').checked = config.EnableAdministratorGroupMapping;
+        byId('avatarMode').value = config.AvatarSyncMode || 'ImportOnce';
+        byId('callbackUri').textContent = config.CallbackUri;
+        byId('secretStatus').textContent = config.ClientSecretConfigured ? 'A client secret is saved. Leave the field blank to keep it.' : 'No client secret is saved. Public PKCE clients may leave this blank.';
+    }
+
+    async function loadSettings() {
+        const [config, pluginConfig] = await Promise.all([
+            api('Plugins/Oidc/Settings'),
+            ApiClient.getPluginConfiguration(pluginId)
+        ]);
+        displaySettings(config);
+        byId('mockEnabled').checked = pluginConfig.EnablePhaseZeroMockLogin === true;
+    }
+
+    page.addEventListener('pageshow', function () {
+        loadSettings().catch(function () { settingsResult.textContent = 'Could not load plugin settings. Sign in as a Jellyfin administrator and reload this page.'; });
     });
 
-    page.querySelector('#save').addEventListener('click', async function () {
-        try {
-            const config = await ApiClient.getPluginConfiguration(pluginId);
-            config.EnablePhaseZeroMockLogin = enabled.checked;
-            const updateResult = await ApiClient.updatePluginConfiguration(pluginId, config);
-            Dashboard.processPluginConfigurationUpdateResult(updateResult);
-            result.textContent = enabled.checked ? 'Mock login enabled.' : 'Mock login disabled.';
-        } catch (error) {
-            result.textContent = 'Could not save configuration.';
-        }
-    });
-
-    async function checkSession(session, deviceId, expectedId) {
-        if (!session.AccessToken) throw new Error('Jellyfin did not return a native session token.');
-        const identity = await deviceRequest('Users/Me', deviceId, session.AccessToken, undefined, 'GET');
-        if (identity.Id.replaceAll('-', '') !== expectedId.replaceAll('-', '')) {
-            throw new Error('The issued session resolved to an unexpected user.');
-        }
-        return identity.Name;
-    }
-
-    async function logout(session, deviceId) {
-        if (session && session.AccessToken) {
-            await deviceRequest('Sessions/Logout', deviceId, session.AccessToken);
-        }
-    }
-
-    page.querySelector('#run').addEventListener('click', async function () {
+    byId('saveSettings').addEventListener('click', async function () {
         const button = this;
         button.disabled = true;
-        result.textContent = 'Running…';
-        const deviceId = newDeviceId();
-        let session;
+        settingsResult.textContent = 'Saving…';
         try {
-            const userId = page.querySelector('#userId').value.trim();
-            if (!/^[0-9a-fA-F-]{32,36}$/.test(userId)) throw new Error('Enter an existing Jellyfin user ID.');
-            const issued = await ApiClient.ajax({
-                type: 'POST',
-                url: ApiClient.getUrl('Plugins/Oidc/Phase0/mock-login/' + encodeURIComponent(userId)),
-                dataType: 'json'
+            const saved = await api('Plugins/Oidc/Settings', 'PUT', {
+                EnableOidc: byId('enableOidc').checked,
+                Issuer: byId('issuer').value.trim(),
+                PublicBaseUrl: byId('publicBaseUrl').value.trim(),
+                ClientId: byId('clientId').value.trim(),
+                ClientSecret: byId('clientSecret').value,
+                AllowedGroup: byId('allowedGroup').value.trim(),
+                AdministratorGroup: byId('administratorGroup').value.trim(),
+                EnableUserProvisioning: byId('enableProvisioning').checked,
+                EnableAdministratorGroupMapping: byId('enableAdminMapping').checked,
+                AvatarSyncMode: byId('avatarMode').value
             });
-            session = await deviceRequest('Users/AuthenticateByName', deviceId, undefined,
-                { Username: issued.Username, Pw: issued.Credential });
-            const name = await checkSession(session, deviceId, userId);
-            result.textContent = 'Passed: Jellyfin issued and accepted a native session for ' + name + '.';
+            byId('clientSecret').value = '';
+            displaySettings(saved);
+            settingsResult.textContent = 'Settings saved. Add the displayed redirect URI to the Pocket ID OIDC client.';
         } catch (error) {
-            result.textContent = 'Failed: ' + (error.message || 'The mock login could not complete.');
+            settingsResult.textContent = 'Could not save settings. Check required values and try again.';
         } finally {
-            try { await logout(session, deviceId); }
-            catch (error) { result.textContent += ' The test session could not be logged out.'; }
             button.disabled = false;
         }
     });
 
-    page.querySelector('#runQuickConnect').addEventListener('click', async function () {
+    byId('startLogin').addEventListener('click', function () {
+        if (!byId('enableOidc').checked) {
+            loginResult.textContent = 'Save the settings with Pocket ID sign-in enabled first.';
+            return;
+        }
+        const popup = window.open(ApiClient.getUrl('Plugins/Oidc/Oidc/login'), 'jellyfin-pocket-id-login', 'popup,width=520,height=720');
+        if (!popup) {
+            loginResult.textContent = 'Allow pop-ups for this Jellyfin site, then try again.';
+            return;
+        }
+        loginResult.textContent = 'Complete sign-in in the Pocket ID window…';
+        const onMessage = async function (event) {
+            if (event.origin !== location.origin || event.source !== popup || !event.data || event.data.type !== 'jellyfin-oidc-login') return;
+            window.removeEventListener('message', onMessage);
+            popup.close();
+            try {
+                const session = await ApiClient.authenticateUserByName(event.data.username, event.data.credential);
+                if (!session || !session.AccessToken || !session.User) throw new Error('No Jellyfin session was returned.');
+                const user = await ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json' });
+                if (user.Id.replaceAll('-', '') !== session.User.Id.replaceAll('-', '')) throw new Error('The session resolved to a different Jellyfin user.');
+                const admin = user.Policy && user.Policy.IsAdministrator === true;
+                const avatar = Boolean(user.PrimaryImageTag);
+                loginResult.textContent = 'Signed in as ' + user.Name + (admin ? ' with administrator access' : '') + (avatar ? '; Pocket ID profile picture is present.' : '; no profile picture was imported.');
+                window.location.hash = '#/home';
+            } catch (error) {
+                loginResult.textContent = 'Pocket ID was verified, but Jellyfin could not finish the native sign-in. Check the server log and plugin settings.';
+            }
+        };
+        window.addEventListener('message', onMessage);
+        const timeout = setTimeout(function () {
+            window.removeEventListener('message', onMessage);
+            if (!popup.closed) popup.close();
+            if (loginResult.textContent.indexOf('Complete sign-in') === 0) loginResult.textContent = 'Sign-in window closed or timed out. Try again.';
+        }, 10 * 60 * 1000);
+        // Clear the timeout when the callback completes.
+        window.addEventListener('message', function clearTimeoutOnSuccess(event) {
+            if (event.source === popup && event.data && event.data.type === 'jellyfin-oidc-login') {
+                clearTimeout(timeout);
+                window.removeEventListener('message', clearTimeoutOnSuccess);
+            }
+        });
+    });
+
+    byId('saveMock').addEventListener('click', async function () {
+        try {
+            const config = await ApiClient.getPluginConfiguration(pluginId);
+            config.EnablePhaseZeroMockLogin = byId('mockEnabled').checked;
+            const updateResult = await ApiClient.updatePluginConfiguration(pluginId, config);
+            Dashboard.processPluginConfigurationUpdateResult(updateResult);
+            mockResult.textContent = byId('mockEnabled').checked ? 'Mock login enabled.' : 'Mock login disabled.';
+        } catch (error) {
+            mockResult.textContent = 'Could not save the Phase 0 setting.';
+        }
+    });
+
+    byId('runMock').addEventListener('click', async function () {
         const button = this;
         button.disabled = true;
-        quickConnectResult.textContent = 'Running…';
-        const deviceId = newDeviceId();
-        let session;
         try {
-            const expectedUser = await ApiClient.ajax({type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json'});
-            const pending = await deviceRequest('QuickConnect/Initiate', deviceId);
-            await ApiClient.ajax({
-                type: 'POST',
-                url: ApiClient.getUrl('QuickConnect/Authorize?code=' + encodeURIComponent(pending.Code)),
-                dataType: 'json'
-            });
-            session = await deviceRequest('Users/AuthenticateWithQuickConnect', deviceId, undefined, { Secret: pending.Secret });
-            const name = await checkSession(session, deviceId, expectedUser.Id);
-            quickConnectResult.textContent = 'Passed: Jellyfin authorized Quick Connect and issued a native session for ' + name + '.';
+            const userId = byId('userId').value.trim();
+            if (!/^[0-9a-fA-F-]{32,36}$/.test(userId)) throw new Error('Enter an existing Jellyfin user ID.');
+            const issued = await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Plugins/Oidc/Phase0/mock-login/' + encodeURIComponent(userId)), dataType: 'json' });
+            const session = await ApiClient.authenticateUserByName(issued.Username, issued.Credential);
+            if (!session || !session.AccessToken) throw new Error('No Jellyfin session was returned.');
+            const user = await ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('Users/Me'), dataType: 'json' });
+            if (user.Id.replaceAll('-', '') !== userId.replaceAll('-', '')) throw new Error('Unexpected user in native session.');
+            mockResult.textContent = 'Passed: Jellyfin established a native session for ' + user.Name + '.';
         } catch (error) {
-            quickConnectResult.textContent = 'Failed: ' + (error.message || 'The Quick Connect check could not complete.');
+            mockResult.textContent = 'Mock login failed. Check the test user provider and Phase 0 setting.';
         } finally {
-            try { await logout(session, deviceId); }
-            catch (error) { quickConnectResult.textContent += ' The test session could not be logged out.'; }
             button.disabled = false;
         }
     });

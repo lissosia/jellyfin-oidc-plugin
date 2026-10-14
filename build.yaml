@@ -1,17 +1,24 @@
 ---
 name: "OpenID Connect"
 guid: "b51a78b4-74b0-4e18-9f69-8e7f79203856"
-version: "0.1.0.1"
+version: "0.2.0.0"
 targetAbi: "12.2.0.0"
 framework: "net10.0"
 overview: "A focused OpenID Connect authentication plugin for Jellyfin."
 description: >
-  Phase 0 compatibility spike for Jellyfin 12. The current build contains a
-  disabled-by-default mock authentication bridge and is not a production OIDC
-  implementation.
+  UAT Pocket ID OIDC login with PKCE, Jellyfin native sessions, group-gated
+  user provisioning, opt-in administrator mapping, and profile picture import.
 category: "Authentication"
 owner: "lissosia"
 artifacts:
 - "Jellyfin.Plugin.Oidc.dll"
+- "Microsoft.Bcl.Cryptography.dll"
+- "Microsoft.IdentityModel.Abstractions.dll"
+- "Microsoft.IdentityModel.JsonWebTokens.dll"
+- "Microsoft.IdentityModel.Logging.dll"
+- "Microsoft.IdentityModel.Protocols.dll"
+- "Microsoft.IdentityModel.Protocols.OpenIdConnect.dll"
+- "Microsoft.IdentityModel.Tokens.dll"
+- "System.IdentityModel.Tokens.Jwt.dll"
 changelog: >
-  Initial Jellyfin 12 and .NET 10 compatibility spike.
+  Add Pocket ID authentication and UAT provisioning/profile synchronization.

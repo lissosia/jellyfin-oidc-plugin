@@ -18,5 +18,26 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<MockAuthenticationProvider>();
         serviceCollection.AddSingleton<IAuthenticationProvider>(services =>
             services.GetRequiredService<MockAuthenticationProvider>());
+        serviceCollection.AddSingleton<OidcTransactionStore>();
+        serviceCollection.AddSingleton<OidcService>();
+        serviceCollection.AddSingleton<UserProvisioningService>();
+        serviceCollection.AddSingleton<AvatarSyncService>();
+        serviceCollection.AddSingleton<OidcAuthenticationProvider>();
+        serviceCollection.AddSingleton<IAuthenticationProvider>(services =>
+            services.GetRequiredService<OidcAuthenticationProvider>());
+        serviceCollection.AddHttpClient("OidcProtocol", client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                ConnectTimeout = TimeSpan.FromSeconds(5)
+            });
+        serviceCollection.AddHttpClient("OidcAvatar", client => client.Timeout = TimeSpan.FromSeconds(10))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                ConnectTimeout = TimeSpan.FromSeconds(5)
+            });
     }
 }
