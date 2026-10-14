@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OIDC Phase 0</title>
+</head>
+<body>
+<div data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox,emby-input">
+    <div data-role="content">
+        <div class="content-primary">
+            <h1>OIDC Phase 0 compatibility spike</h1>
+            <p>This mock flow is for a private Jellyfin 12 test server only. It issues a two-minute, single-use credential for an existing account. The mock login endpoint is disabled by default.</p>
+            <label class="emby-checkbox-label">
+                <input id="mockEnabled" type="checkbox" is="emby-checkbox">
+                <span>Enable the temporary mock login flow</span>
+            </label>
+            <button id="save" is="emby-button" type="button" class="raised button-submit block"><span>Save</span></button>
+
+            <h2>Exercise a native Jellyfin session</h2>
+            <p>Enter an existing test user's Jellyfin ID. This page asks the plugin for a mock external identity, exchanges its one-time credential through <code>/Users/AuthenticateByName</code>, and checks the resulting native session. The access token is kept in memory and not displayed.</p>
+            <div class="inputContainer">
+                <input id="userId" is="emby-input" type="text" autocomplete="off" required>
+                <label class="inputLabel inputLabel-float">Existing Jellyfin user ID</label>
+            </div>
+            <button id="run" is="emby-button" type="button" class="raised button-submit block"><span>Run mock login</span></button>
+            <p id="result" role="status" aria-live="polite"></p>
+
+            <h2>Exercise Jellyfin Quick Connect</h2>
+            <p>This check uses Jellyfin's own initiation, authenticated authorization and device-session endpoints. It creates a temporary Quick Connect session for the currently signed-in administrator.</p>
+            <button id="runQuickConnect" is="emby-button" type="button" class="raised button-submit block"><span>Run Quick Connect check</span></button>
+            <p id="quickConnectResult" role="status" aria-live="polite"></p>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    const pluginId = 'b51a78b4-74b0-4e18-9f69-8e7f79203856';
+    const page = document.querySelector('.pluginConfigurationPage');
+    const enabled = page.querySelector('#mockEnabled');
+    const result = page.querySelector('#result');
+    const quickConnectResult = page.querySelector('#quickConnectResult');
+
+    page.addEventListener('pageshow', async function () {
+        const config = await ApiClient.getPluginConfiguration(pluginId);
+        enabled.checked = config.EnablePhaseZeroMockLogin === true;
+    });
+
+    page.querySelector('#save').addEventListener('click', async function () {
+        const config = await ApiClient.getPluginConfiguration(pluginId);
+        config.EnablePhaseZeroMockLogin = enabled.checked;
+        const updateResult = await ApiClient.updatePluginConfiguration(pluginId, config);
+        Dashboard.processPluginConfigurationUpdateResult(updateResult);
+        result.textContent = enabled.checked ? 'Mock login enabled.' : 'Mock login disabled.';
+    });
+
+    page.querySelector('#run').addEventListener('click', async function () {
+        result.textContent = 'Running…';
+        let accessToken;
+        try {
+            const userId = page.querySelector('#userId').value.trim();
+            if (!userId) {
+                throw new Error('Enter an existing Jellyfin user ID.');
+            }
+
+            const issued = await ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('Plugins/Oidc/Phase0/mock-login/' + encodeURIComponent(userId)),
+                dataType: 'json'
+            });
+            const session = await ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('Users/AuthenticateByName'),
+                contentType: 'application/json',
+                dataType: 'json',
+                data: JSON.stringify({ Username: issued.username, Pw: issued.credential })
+            });
+            accessToken = session.AccessToken;
+            if (!accessToken) {
+                throw new Error('Jellyfin did not return a native session token.');
+            }
+
+            const identity = await ApiClient.ajax({
+                type: 'GET',
+                url: ApiClient.getUrl('Plugins/Oidc/Phase0/who-am-i'),
+                dataType: 'json',
+                headers: { 'X-Emby-Token': accessToken }
+            });
+            if (identity !== issued.username) {
+                throw new Error('The issued session resolved to an unexpected user.');
+            }
+
+            result.textContent = 'Passed: Jellyfin issued and accepted a native session for ' + identity + '.';
+        } catch (error) {
+            result.textContent = 'Failed: ' + (error.message || 'The Phase 0 flow could not complete.');
+        } finally {
+            accessToken = undefined;
+        }
+    });
+
+    page.querySelector('#runQuickConnect').addEventListener('click', async function () {
+        quickConnectResult.textContent = 'Running…';
+        let accessToken;
+        try {
+            const expectedUser = await ApiClient.ajax({
+                type: 'GET',
+                url: ApiClient.getUrl('Users/Me'),
+                dataType: 'json'
+            });
+            const pending = await ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('QuickConnect/Initiate'),
+                dataType: 'json'
+            });
+            await ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('QuickConnect/Authorize?code=' + encodeURIComponent(pending.Code)),
+                dataType: 'json'
+            });
+            const session = await ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('Users/AuthenticateWithQuickConnect'),
+                contentType: 'application/json',
+                dataType: 'json',
+                data: JSON.stringify({ Secret: pending.Secret })
+            });
+            accessToken = session.AccessToken;
+            if (!accessToken) {
+                throw new Error('Quick Connect did not return a native session token.');
+            }
+
+            const identity = await ApiClient.ajax({
+                type: 'GET',
+                url: ApiClient.getUrl('Plugins/Oidc/Phase0/who-am-i'),
+                dataType: 'json',
+                headers: { 'X-Emby-Token': accessToken }
+            });
+            if (identity !== expectedUser.Name) {
+                throw new Error('Quick Connect returned an unexpected user.');
+            }
+
+            quickConnectResult.textContent = 'Passed: Jellyfin authorized Quick Connect and issued a native session for ' + identity + '.';
+        } catch (error) {
+            quickConnectResult.textContent = 'Failed: ' + (error.message || 'The Quick Connect check could not complete.');
+        } finally {
+            accessToken = undefined;
+        }
+    });
+}());
+</script>
+</body>
+</html>
